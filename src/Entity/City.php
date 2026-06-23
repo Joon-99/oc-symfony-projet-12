@@ -21,6 +21,9 @@ class City extends BaseEntity
     #[ORM\Column(type: 'float', nullable: true)]
     private ?float $longitude = null;
 
+    #[ORM\Column(type: 'string', length: 3, nullable: false)]
+    private string $country = 'FR';
+
 
     public function getName(): string
     {
@@ -59,6 +62,16 @@ class City extends BaseEntity
     public function setLongitude(?float $longitude): self
     {
         $this->longitude = $longitude;
+        return $this;
+    }
+
+    public function getCountry(): string
+    {
+        return $this->country;
+    }
+    public function setCountry(string $country): self
+    {
+        $this->country = $country;
         return $this;
     }
 }

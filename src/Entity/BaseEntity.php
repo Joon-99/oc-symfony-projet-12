@@ -18,10 +18,10 @@ class BaseEntity
         return $this->id;
     }
 
-    #[ORM\Column(type: 'datetime')]
+    #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeInterface $createdAt;
 
-    #[ORM\Column(type: 'datetime', nullable: true)]
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeInterface $modifiedAt = null;
 
     #[ORM\Column(type: 'boolean')]

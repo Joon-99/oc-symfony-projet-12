@@ -40,7 +40,6 @@ class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUse
     public function setUsername(string $username): self
     {
         $this->username = $username;
-
         return $this;
     }
 
@@ -51,7 +50,6 @@ class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUse
     public function setRole(string $role): self
     {
         $this->role = $role;
-
         return $this;
     }
     public function getRoleEnum(): UserRole
@@ -65,7 +63,6 @@ class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUse
     public function setRoleEnum(UserRole $role): self
     {
         $this->role = $role->value;
-
         return $this;
     }
 
@@ -76,7 +73,6 @@ class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUse
     public function setPassword(string $password): self
     {
         $this->password = $password;
-
         return $this;
     }
 
@@ -87,7 +83,6 @@ class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUse
     public function setCity(City $city): self
     {
         $this->city = $city;
-
         return $this;
     }
 

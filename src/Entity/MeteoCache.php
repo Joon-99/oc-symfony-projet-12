@@ -19,10 +19,10 @@ class MeteoCache extends BaseEntity
     #[ORM\Column(type: 'json')]
     private array $data = [];
 
-    #[ORM\Column(type: 'datetime')]
+    #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeInterface $fetchedAt;
 
-    #[ORM\Column(type: 'datetime', nullable: true)]
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeInterface $expiresAt = null;
 
 

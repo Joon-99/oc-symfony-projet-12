@@ -7,6 +7,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CityRepository::class)]
 #[ORM\Table(name: 'cities')]
+#[ORM\UniqueConstraint(name: 'unique_zip_country', columns: ['zip_code', 'country'])]
 class City extends BaseEntity
 {
     #[ORM\Column(type: 'string', length: 255, nullable: false)]

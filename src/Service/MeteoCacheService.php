@@ -34,9 +34,15 @@ final class MeteoCacheService
     public function getMeteoCacheByCity(City $city): MeteoCache
     {
         $meteoCache = $this->meteoRepo->findOneBy(['city' => $city]);
-        if ($meteoCache) {
+        if ($meteoCache && !$meteoCache->isExpired()) {
             return $meteoCache;
         }
+
+        if ($meteoCache) {
+            $this->em->remove($meteoCache);
+            $this->em->flush();
+        }
+
         try {
             $meteoData = $this->weatherService->getWeatherByCoordinates($city->getLatitude(), $city->getLongitude());
         } catch (OpenWeatherApiZipNotFoundException $e) {
@@ -50,8 +56,7 @@ final class MeteoCacheService
         $meteoCache->setCity($city);
         $meteoCache->setData($meteoData);
         $meteoCache->setFetchedAt(new DateTimeImmutable());
-        // Set the expiration time for the cached data (e.g., 1 hour from now)
-        $meteoCache->setExpiresAt((new DateTimeImmutable())->add(DateInterval::createFromDateString( '1 hour' )));
+        $meteoCache->setExpiresAt((new DateTimeImmutable())->add(DateInterval::createFromDateString('1 hour')));
         try {
             $this->em->persist($meteoCache);
             $this->em->flush();

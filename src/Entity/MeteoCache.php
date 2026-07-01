@@ -72,4 +72,11 @@ class MeteoCache extends BaseEntity
         $this->expiresAt = $expiresAt;
         return $this;
     }
+
+    public function isExpired(?\DateTimeInterface $now = null): bool
+    {
+        $now ??= new \DateTimeImmutable();
+
+        return $this->expiresAt !== null && $this->expiresAt <= $now;
+    }
 }

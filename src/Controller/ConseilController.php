@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\Service\Attribute\Required;
 use App\Entity\Conseil;
+use Exception;
 
 
 final class ConseilController extends AbstractController
@@ -92,5 +93,24 @@ final class ConseilController extends AbstractController
         $this->em->flush();
 
         return new JsonResponse(['message' => 'Conseil updated successfully'], Response::HTTP_OK);
+    }
+
+    #[Route(path: '/conseil/{id}', methods: ['DELETE'])]
+    public function delete(int $id): JsonResponse
+    {
+        $conseil = $this->em->getRepository(Conseil::class)->find($id);
+
+        if (!$conseil) {
+            return new JsonResponse(['error' => 'Conseil not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        try {
+            $this->em->remove($conseil);
+            $this->em->flush();
+        } catch (Exception $e) {
+            return new JsonResponse(['error' => 'Failed to delete Conseil'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return new JsonResponse(['message' => 'Conseil deleted successfully'], Response::HTTP_OK);
     }
 }

@@ -19,6 +19,7 @@
         "symfony/runtime": "8.1.*",
         "symfony/security-bundle": "8.1.*",
         "symfony/security-core": "8.1.*",
+        "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*"
     },
     "config": {

@@ -12,6 +12,8 @@ use App\Service\MeteoCacheService;
 use Exception;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Contracts\Service\Attribute\Required;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+use App\Entity\User;
 
 
 final class MeteoController extends AbstractController
@@ -21,7 +23,8 @@ final class MeteoController extends AbstractController
     #[Required]
     public MeteoCacheService $meteoCacheService;
 
-    #[Route(path: '/meteo/{zipCode}', methods: ['GET'])]
+    #[Route(path: '/meteo/{zipCode}', methods: ['GET'], requirements: ['zipCode' => '\d+'])]
+    #[IsGranted('ROLE_USER', message: "You're not authorized to access meteo data.")]
     public function getMeteoByZipCode(int $zipCode): JsonResponse
     {
         $city = null;
@@ -40,9 +43,29 @@ final class MeteoController extends AbstractController
             return new JsonResponse(['error' => "Failed to fetch weather data: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
         return new JsonResponse([
-            'city' => $city->getName(),
-            'temperature' => $meteoCache->getData()['main']['temp'] ?? null,
-            'wind_speed' => $meteoCache->getData()['wind']['speed'] ?? null,
+            'meteoData' => $meteoCache->getData(),
+        ]);
+    }
+
+    #[Route(path: '/meteo', methods: ['GET'])]
+    #[IsGranted('ROLE_USER', message: "You're not authorized to access meteo data.")]
+    public function getMeteoForCurrentUser(): JsonResponse
+    {
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+        $city = $currentUser->getCity();
+        if (!$city) {
+            return new JsonResponse(['error' => 'Current user does not have a city.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+        try {
+            $meteoCache = $this->meteoCacheService->getMeteoCacheByCity($city);
+        } catch (MeteoNotFoundException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Exception $e) {
+            return new JsonResponse(['error' => "Failed to fetch weather data: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return new JsonResponse([
+            'meteoData' => $meteoCache->getData(),
         ]);
     }
 }

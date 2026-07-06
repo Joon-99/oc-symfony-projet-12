@@ -9,3 +9,6 @@
 
 controllers:
     resource: routing.controllers
+
+auth_login_check:
+    path: /auth

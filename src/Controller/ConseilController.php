@@ -10,6 +10,10 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\Service\Attribute\Required;
 use App\Entity\Conseil;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+use App\Repository\ConseilRepository;
+use Symfony\Component\Serializer\SerializerInterface;
+use DateTime;
 use Exception;
 
 
@@ -18,7 +22,11 @@ final class ConseilController extends AbstractController
     #[Required]
     public EntityManagerInterface $em;
 
+    #[Required]
+    public ConseilRepository $conseilRepository;
+
     #[Route(path: '/conseil', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to create a conseil.")]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -54,20 +62,14 @@ final class ConseilController extends AbstractController
     }
 
     #[Route(path: '/conseil/{id}', methods: ['PUT'])]
-    public function update(int $id, Request $request): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to update this conseil.")]
+    public function update(Conseil $conseil, Request $request): JsonResponse
     {
-        $conseil = $this->em->getRepository(Conseil::class)->find($id);
-
-        if (!$conseil) {
-            return new JsonResponse(['error' => 'Conseil not found'], Response::HTTP_NOT_FOUND);
-        }
-
         $data = json_decode($request->getContent(), true);
 
         if (!is_array($data)) {
             return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
         }
-
 
         $months = $data['months'] ?? null;
         $content = $data['content'] ?? null;
@@ -96,14 +98,9 @@ final class ConseilController extends AbstractController
     }
 
     #[Route(path: '/conseil/{id}', methods: ['DELETE'])]
-    public function delete(int $id): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to delete this conseil.")]
+    public function delete(Conseil $conseil): JsonResponse
     {
-        $conseil = $this->em->getRepository(Conseil::class)->find($id);
-
-        if (!$conseil) {
-            return new JsonResponse(['error' => 'Conseil not found'], Response::HTTP_NOT_FOUND);
-        }
-
         try {
             $this->em->remove($conseil);
             $this->em->flush();
@@ -111,6 +108,34 @@ final class ConseilController extends AbstractController
             return new JsonResponse(['error' => 'Failed to delete Conseil'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return new JsonResponse(['message' => 'Conseil deleted successfully'], Response::HTTP_OK);
+        return new JsonResponse(['message' => 'Conseil deleted successfully'], Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route(path: '/conseil', methods: ['GET'])]
+    #[IsGranted('ROLE_USER', message: "You're not authorized to view current conseils.")]
+    public function list(SerializerInterface $serializer): JsonResponse
+    {
+        $month = Conseil::getMonthFromDate(new DateTime());
+        $conseils = $this->conseilRepository->findByMonth($month);
+        if (empty($conseils)) {
+            return new JsonResponse(['message' => 'No conseils found for the current month'], Response::HTTP_NOT_FOUND);
+        }
+        $jsonConseils = $serializer->serialize($conseils, 'json', ['groups' => ['conseilPublic']]);
+        return new JsonResponse($jsonConseils, Response::HTTP_OK, [], true);
+    }
+
+    #[Route(path: '/conseil/{month}', methods: ['GET'], requirements: ['month' => '\d+'])]
+    #[IsGranted('ROLE_USER', message: "You're not authorized to conseils for a specific month.")]
+    public function conseilByMonth(int $month, SerializerInterface $serializer): JsonResponse
+    {
+        if ($month < 1 || $month > 12) {
+            return new JsonResponse(['error' => 'Invalid month. Month must be between 1 and 12.'], Response::HTTP_BAD_REQUEST);
+        }
+        $conseils = $this->conseilRepository->findByMonth($month);
+        if (empty($conseils)) {
+            return new JsonResponse(['message' => 'No conseils found for the specified month'], Response::HTTP_NOT_FOUND);
+        }
+        $jsonConseils = $serializer->serialize($conseils, 'json', ['groups' => ['conseilPublic']]);
+        return new JsonResponse($jsonConseils, Response::HTTP_OK, [], true);
     }
 }

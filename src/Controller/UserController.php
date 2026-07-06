@@ -14,7 +14,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 final class UserController extends AbstractController
 {
@@ -30,7 +32,7 @@ final class UserController extends AbstractController
     //TODO validation through forms or serializer 
 
     #[Route(path: '/user', methods: ['POST'])]
-    public function create(Request $request): Response
+    public function create(Request $request, UrlGeneratorInterface $urlGenerator): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
         if (!is_array($data)) {
@@ -76,6 +78,8 @@ final class UserController extends AbstractController
         $this->em->persist($user);
         $this->em->flush();
 
+        $location = $urlGenerator->generate('app_user_get', ['id' => $user->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
+
         return new JsonResponse([
             'id' => $user->getId(),
             'username' => $user->getUsername(),
@@ -83,17 +87,13 @@ final class UserController extends AbstractController
                 'name' => $city->getName(),
                 'zipCode' => $city->getZipCode(),
             ],
-        ], Response::HTTP_CREATED);
+        ], Response::HTTP_CREATED, ['Location' => $location]);
     }
 
     #[Route(path: '/user/{id}', methods: ['PUT'])]
-    public function update(int $id, Request $request): Response
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to update this user.")]
+    public function update(User $user, Request $request): JsonResponse
     {
-        $user = $this->userRepository->find($id);
-        if (!$user) {
-            return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
-        }
-
         $data = json_decode($request->getContent(), true);
         if (!is_array($data)) {
             return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
@@ -147,13 +147,9 @@ final class UserController extends AbstractController
     }
 
     #[Route(path: '/user/{id}', methods: ['DELETE'])]
-    public function delete(int $id): Response
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to delete this user.")]
+    public function delete(User $user): JsonResponse
     {
-        $user = $this->userRepository->find($id);
-        if (!$user) {
-            return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
-        }
-
         try {
             $this->em->remove($user);
             $this->em->flush();
@@ -162,6 +158,20 @@ final class UserController extends AbstractController
             return new JsonResponse(['error' => 'Error while deleting user'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return new JsonResponse(null, Response::HTTP_OK);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route(path: '/user/{id}', methods: ['GET'])]
+    #[IsGranted('ROLE_USER', message: "You're not authorized to view this user.")]
+    public function get(User $user): JsonResponse
+    {
+        return new JsonResponse([
+            'id' => $user->getId(),
+            'username' => $user->getUsername(),
+            'city' => [
+                'name' => $user->getCity()->getName(),
+                'zipCode' => $user->getCity()->getZipCode(),
+            ],
+        ], Response::HTTP_OK);
     }
 }

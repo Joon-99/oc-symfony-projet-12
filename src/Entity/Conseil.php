@@ -4,18 +4,22 @@ namespace App\Entity;
 
 use App\Repository\ConseilRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
+use DateTimeInterface;
 
 #[ORM\Entity(repositoryClass: ConseilRepository::class)]
 #[ORM\Table(name: 'conseils')]
 class Conseil extends BaseEntity
 {
     #[ORM\Column(type: 'text', nullable: false)]
+    #[Groups(['conseilPublic'])]
     private string $content;
 
     /**
      * Array of month numbers (1..12) when this conseil applies.
      */
     #[ORM\Column(type: 'json', nullable: false)]
+    #[Groups(['conseilPublic'])]
     private array $months = [];
 
 
@@ -49,5 +53,10 @@ class Conseil extends BaseEntity
     {
         $this->months = array_values(array_unique($months));
         return $this;
+    }
+
+    static public function getMonthFromDate(DateTimeInterface $date): int
+    {
+        return (int)$date->format('n');
     }
 }

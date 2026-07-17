@@ -17,6 +17,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use App\Form\UserType;
 
 final class UserController extends AbstractController
 {
@@ -39,23 +40,21 @@ final class UserController extends AbstractController
             return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
         }
 
-        $username = $data['username'] ?? null;
-        $password = $data['password'] ?? null;
-        $zipCode = $data['zipCode'] ?? null;
+        $user = new User();
 
-        if (!$username || !$password) {
-            return new JsonResponse(['error' => 'username and password are required'], Response::HTTP_BAD_REQUEST);
+        $form = $this->createForm(UserType::class, $user);
+        $form->submit($data);
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $errors = [];
+            foreach ($form->getErrors(true) as $error) {
+                $field = $error->getOrigin()?->getName();
+                $errors[] = "$field: {$error->getMessage()}";
+            }
+            return new JsonResponse(['error' => 'Invalid data', 'details' => $errors], Response::HTTP_BAD_REQUEST);
         }
 
-        // ensure username unique
-        if ($this->userRepository->findOneBy(['username' => $username])) {
-            return new JsonResponse(['error' => 'username already exists'], Response::HTTP_BAD_REQUEST);
-        }
-
-        // requires zipCode
-        if (!$zipCode) {
-            return new JsonResponse(['error' => 'zipCode is required'], Response::HTTP_BAD_REQUEST);
-        }
+        $password = $form->get('password')->getData();
+        $zipCode = $form->get('zipCode')->getData();
 
         // find or create city
         try {
@@ -69,8 +68,6 @@ final class UserController extends AbstractController
 
         $this->em->persist($city);
 
-        $user = new User();
-        $user->setUsername($username);
         $hashed = $this->hasher->hashPassword($user, $password);
         $user->setPassword($hashed);
         $user->setCity($city);

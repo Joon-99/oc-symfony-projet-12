@@ -6,6 +6,7 @@ use App\Repository\ConseilRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use DateTimeInterface;
+use DateTime;
 
 #[ORM\Entity(repositoryClass: ConseilRepository::class)]
 #[ORM\Table(name: 'conseils')]
@@ -58,5 +59,11 @@ class Conseil extends BaseEntity
     static public function getMonthFromDate(DateTimeInterface $date): int
     {
         return (int)$date->format('n');
+    }
+
+    static public function getMonthName(int $month): string
+    {
+        $date = DateTime::createFromFormat('!m', $month);
+        return $date->format('F');
     }
 }

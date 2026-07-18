@@ -38,12 +38,15 @@ class AppFixtures extends Fixture
         $adminUser->setCity($newCity2);
         $manager->persist($adminUser);
 
+        $randomEmptyMonth = random_int(1, 12);
         // conseils
         for ($i = 324; $i <= 333; $i++) {
             $conseil = new Conseil();
             $conseil->setContent("Conseil numero $i");
 
             $months = range(1, 12);
+
+            unset($months[array_search($randomEmptyMonth, $months)]);
             shuffle($months);
 
             $appliedMonths = array_slice($months, 0, random_int(1, 12));

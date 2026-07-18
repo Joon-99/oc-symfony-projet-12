@@ -9,6 +9,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'meteo_caches')]
 class MeteoCache extends BaseEntity
 {
+    public CONST CACHE_DURATION = '1 hour';
+
     #[ORM\ManyToOne(targetEntity: City::class)]
     #[ORM\JoinColumn(nullable: false)]
     private City $city;

@@ -10,6 +10,7 @@ use App\Service\Exception\MeteoCache\MeteoNotFoundException;
 use App\Service\CityService;
 use App\Service\MeteoCacheService;
 use Exception;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Contracts\Service\Attribute\Required;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -22,10 +23,12 @@ final class MeteoController extends AbstractController
     public CityService $cityService;
     #[Required]
     public MeteoCacheService $meteoCacheService;
+    #[Required]
+    public EntityManagerInterface $em;
 
     #[Route(path: '/meteo/{zipCode}', methods: ['GET'], requirements: ['zipCode' => '\d+'])]
     #[IsGranted('ROLE_USER', message: "You're not authorized to access meteo data.")]
-    public function getMeteoByZipCode(int $zipCode): JsonResponse
+    public function getMeteoByZipCode(string $zipCode): JsonResponse
     {
         $city = null;
         try {
@@ -35,6 +38,14 @@ final class MeteoController extends AbstractController
         } catch (Exception $e) {
             return new JsonResponse(['error' => "Failed to geocode zip code: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+
+        try {
+            $this->em->persist($city);
+            $this->em->flush();
+        } catch (Exception $e) {
+            return new JsonResponse(['error' => "Failed to register the city: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
         try {
             $meteoCache = $this->meteoCacheService->getMeteoCacheByCity($city);
         } catch (MeteoNotFoundException $e) {
@@ -42,6 +53,7 @@ final class MeteoController extends AbstractController
         } catch (Exception $e) {
             return new JsonResponse(['error' => "Failed to fetch weather data: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+
         return new JsonResponse([
             'meteoData' => $meteoCache->getData(),
         ]);
@@ -54,9 +66,11 @@ final class MeteoController extends AbstractController
         /** @var User $currentUser */
         $currentUser = $this->getUser();
         $city = $currentUser->getCity();
+
         if (!$city) {
             return new JsonResponse(['error' => 'Current user does not have a city.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+
         try {
             $meteoCache = $this->meteoCacheService->getMeteoCacheByCity($city);
         } catch (MeteoNotFoundException $e) {
@@ -64,6 +78,7 @@ final class MeteoController extends AbstractController
         } catch (Exception $e) {
             return new JsonResponse(['error' => "Failed to fetch weather data: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+
         return new JsonResponse([
             'meteoData' => $meteoCache->getData(),
         ]);

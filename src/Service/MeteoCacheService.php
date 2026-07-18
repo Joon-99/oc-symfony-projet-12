@@ -31,6 +31,12 @@ final class MeteoCacheService
     #[Required]
     public LoggerInterface $logger;
 
+    /**
+     * @throws MeteoNotFoundException 
+     * @throws MeteoProviderUnavailableException 
+     * @throws MeteoLookupFailedException 
+     * @throws Exception 
+     */
     public function getMeteoCacheByCity(City $city): MeteoCache
     {
         $meteoCache = $this->meteoRepo->findOneBy(['city' => $city]);
@@ -38,6 +44,7 @@ final class MeteoCacheService
             return $meteoCache;
         }
 
+        // expired cache
         if ($meteoCache) {
             $this->em->remove($meteoCache);
             $this->em->flush();
@@ -56,7 +63,7 @@ final class MeteoCacheService
         $meteoCache->setCity($city);
         $meteoCache->setData($meteoData);
         $meteoCache->setFetchedAt(new DateTimeImmutable());
-        $meteoCache->setExpiresAt((new DateTimeImmutable())->add(DateInterval::createFromDateString('1 hour')));
+        $meteoCache->setExpiresAt((new DateTimeImmutable())->add(DateInterval::createFromDateString(MeteoCache::CACHE_DURATION)));
         try {
             $this->em->persist($meteoCache);
             $this->em->flush();

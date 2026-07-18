@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Entity\User;
-use App\Repository\UserRepository;
 use App\Service\CityService;
 use App\Service\Exception\City\CityNotFoundException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -11,50 +10,33 @@ use Exception;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use App\Form\UserType;
-
+use App\Dto\UserData;
+use App\Security\Voter\UserVoter;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 final class UserController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em,
         private LoggerInterface $logger,
         private UserPasswordHasherInterface $hasher,
-        private UserRepository $userRepository,
         private CityService $cityService,
+        private UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
-    //TODO validation through forms or serializer 
-
-    #[Route(path: '/user', methods: ['POST'])]
-    public function create(Request $request, UrlGeneratorInterface $urlGenerator): JsonResponse
+    #[Route(path: '/user', methods: ['POST'], format: 'json')]
+    public function create(#[MapRequestPayload(acceptFormat: 'json', validationFailedStatusCode: Response::HTTP_BAD_REQUEST)] UserData $userData): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
-        if (!is_array($data)) {
-            return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
-        }
-
         $user = new User();
 
-        $form = $this->createForm(UserType::class, $user);
-        $form->submit($data);
-        if (!$form->isSubmitted() || !$form->isValid()) {
-            $errors = [];
-            foreach ($form->getErrors(true) as $error) {
-                $field = $error->getOrigin()?->getName();
-                $errors[] = "$field: {$error->getMessage()}";
-            }
-            return new JsonResponse(['error' => 'Invalid data', 'details' => $errors], Response::HTTP_BAD_REQUEST);
-        }
-
-        $password = $form->get('password')->getData();
-        $zipCode = $form->get('zipCode')->getData();
+        $username = $userData->username;
+        $password = $userData->password;
+        $zipCode = $userData->zipCode;
 
         // find or create city
         try {
@@ -67,15 +49,17 @@ final class UserController extends AbstractController
         }
 
         $this->em->persist($city);
+        $user->setCity($city);
 
         $hashed = $this->hasher->hashPassword($user, $password);
         $user->setPassword($hashed);
-        $user->setCity($city);
+
+        $user->setUsername($username);
 
         $this->em->persist($user);
         $this->em->flush();
 
-        $location = $urlGenerator->generate('app_user_get', ['id' => $user->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
+        $location = $this->urlGenerator->generate('app_user_get', ['id' => $user->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
         return new JsonResponse([
             'id' => $user->getId(),
@@ -87,69 +71,53 @@ final class UserController extends AbstractController
         ], Response::HTTP_CREATED, ['Location' => $location]);
     }
 
-    #[Route(path: '/user/{id}', methods: ['PUT'])]
-    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to update this user.")]
-    public function update(User $user, Request $request): JsonResponse
+    #[Route(path: '/user/{id}', methods: ['PUT'], format: 'json')]
+    #[IsGranted(UserVoter::CAN_EDIT_USER, 'user', message: "You don't have permission to edit this user.")]
+    public function update(User $user, #[MapRequestPayload(acceptFormat: 'json', validationFailedStatusCode: Response::HTTP_BAD_REQUEST)] UserData $userData): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
-        if (!is_array($data)) {
-            return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
+        $username = $userData->username;
+        $password = $userData->password;
+        $zipCode = $userData->zipCode;
+
+        try {
+            $city = $this->cityService->getCityFromZipCode($zipCode);
+        } catch (CityNotFoundException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], $e->getStatusCode());
+        } catch (Exception $e) {
+            $this->logger->error('Error while geocoding zip code', ['exception' => $e]);
+            return new JsonResponse(['error' => "Failed to geocode zip code: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $username = $data['username'] ?? null;
-        $password = $data['password'] ?? null;
-        $zipCode = $data['zipCode'] ?? null;
+        $this->em->persist($city);
+        $user->setCity($city);
 
-        if (!$username && !$password && !$zipCode) {
-            return new JsonResponse(['error' => 'Expecting these values: username, password, or zipCode'], Response::HTTP_BAD_REQUEST);
-        }
+        $hashed = $this->hasher->hashPassword($user, $password);
+        $user->setPassword($hashed);
 
-        if ($zipCode) {
-            try {
-                $city = $this->cityService->getCityFromZipCode($zipCode);
-            } catch (CityNotFoundException $e) {
-                return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-            } catch (Exception $e) {
-                $this->logger->error('Error while geocoding zip code', ['exception' => $e]);
-                return new JsonResponse(['error' => "Failed to geocode zip code: {$e->getMessage()}"], Response::HTTP_INTERNAL_SERVER_ERROR);
-            }
-
-            $this->em->persist($city);
-            $user->setCity($city);
-        }
-
-        if ($username) {
-            $existingUser = $this->userRepository->findOneBy(['username' => $username]);
-            if ($existingUser && $existingUser->getId() !== $user->getId()) {
-                return new JsonResponse(['error' => 'username already exists'], Response::HTTP_BAD_REQUEST);
-            }
-            $user->setUsername($username);
-        }
-
-        if ($password) {
-            $hashed = $this->hasher->hashPassword($user, $password);
-            $user->setPassword($hashed);
-        }
+        $user->setUsername($username);
 
         $this->em->flush();
 
-        return new JsonResponse([
-            'id' => $user->getId(), // for consequent put requests
-            'username' => $user->getUsername(),
-            'city' => [
-                'name' => $user->getCity()->getName(),
-                'zipCode' => $user->getCity()->getZipCode(),
-            ],
-        ], Response::HTTP_OK);
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+        $this->logger->info('User updated', ['modifier_id' => $currentUser?->getId(), 'target_user_id' => $user->getId()]);
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
     #[Route(path: '/user/{id}', methods: ['DELETE'])]
-    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to delete this user.")]
+    #[IsGranted(UserVoter::CAN_DELETE_USER, 'user', message: "You don't have permission to delete this user.")]
     public function delete(User $user): JsonResponse
     {
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+        $deleterId = $currentUser?->getId();
+        $deletedUserId = $user->getId();
+
         try {
             $this->em->remove($user);
             $this->em->flush();
+            $this->logger->info('User deleted', ['deleter_id' => $deleterId, 'deleted_user_id' => $deletedUserId]);
         } catch (Exception $e) {
             $this->logger->error('Error while deleting user', ['exception' => $e]);
             return new JsonResponse(['error' => 'Error while deleting user'], Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -159,7 +127,7 @@ final class UserController extends AbstractController
     }
 
     #[Route(path: '/user/{id}', methods: ['GET'])]
-    #[IsGranted('ROLE_USER', message: "You're not authorized to view this user.")]
+    #[IsGranted('ROLE_ADMIN', message: "You're not authorized to view this user.")]
     public function get(User $user): JsonResponse
     {
         return new JsonResponse([

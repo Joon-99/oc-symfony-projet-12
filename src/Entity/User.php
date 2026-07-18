@@ -7,33 +7,19 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use App\Enum\UserRole;
-use Symfony\Component\Validator\Constraints as Assert;
-use Symfony\Component\Validator\Constraints\PasswordStrength;
-use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'users')]
-#[UniqueEntity(fields: ['username'], message: 'This username is already taken.')]
 class User extends BaseEntity implements UserInterface, PasswordAuthenticatedUserInterface
 {
 
     #[ORM\Column(type: 'string', length: 100, unique: true, nullable: false)]
-    #[Assert\NotBlank]
-    #[Assert\Length(min: 3)]
-    #[Assert\Length(max: 100)]
     private string $username;
 
     #[ORM\Column(type: 'string', length: 50, nullable: false)]
-    #[Assert\NotBlank]
-    #[Assert\Length(min: 5)]
-    #[Assert\Length(max: 50)]
     private string $role;
 
     #[ORM\Column(type: 'string', nullable: false)]
-    #[Assert\NotBlank]
-    #[Assert\PasswordStrength(
-        minScore: PasswordStrength::STRENGTH_MEDIUM,
-    )]
     private string $password;
 
     #[ORM\ManyToOne(targetEntity: City::class)]
